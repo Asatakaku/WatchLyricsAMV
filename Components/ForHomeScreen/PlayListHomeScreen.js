@@ -1,26 +1,52 @@
 import React from 'react';
 import { Text, View, StyleSheet, FlatList, Image } from 'react-native';
-import AMVData from '../../DummyData/AMVData';
-import VideoData from '../../DummyData/VideoData';
-import Youtuber from '../../DummyData/Youtuber';
-const getYoutuberName = (id) => {
-    const youtuber = Youtuber.find(youtuber => youtuber.id === id);
-    return youtuber ? youtuber.name : 'Unknown Youtuber';
-  };
-  
+import { useState, useEffect } from 'react';
+
+ 
 
 export default function PlayListHomeScreen() { 
+    const [videos, setVideos] = useState([]);
+    const playlistId = 'PLDeBMQQfQmVJQiMgHg1xyw-mv1o4HqtoX';
+    const apiKey = 'AIzaSyBzWLhuhytW8l-bqOGa9mg3V1dJy1Q5oFM';
+    //api key
+    useEffect(() => {
+        const fetchVideos = async (pageToken = '') => {
+            try {
+                const res = await fetch(`https://youtube.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=50&playlistId=${playlistId}&key=${apiKey}&pageToken=${pageToken}`);
+                const data = await res.json();
+                const videoDetailsPromises = data.items.map(async (item) => {
+                    const videoRes = await fetch(`https://youtube.googleapis.com/youtube/v3/videos?part=snippet&id=${item.snippet.resourceId.videoId}&key=${apiKey}`);
+                    const videoData = await videoRes.json();
+                    const channelId = videoData.items[0].snippet.channelId;
+                    const channelRes = await fetch(`https://youtube.googleapis.com/youtube/v3/channels?part=snippet&id=${channelId}&key=${apiKey}`);
+                    const channelData = await channelRes.json();
+                    return { ...item, channelIcon: channelData.items[0].snippet.thumbnails.default.url };
+                });
+                const videoDetails = await Promise.all(videoDetailsPromises);
+                setVideos(prevVideos => [...prevVideos, ...videoDetails]);
+                if (data.nextPageToken) {
+                    fetchVideos(data.nextPageToken); // Fetch next page
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        };
+        fetchVideos();
+    }, []);
     return (
         <FlatList
             columnWrapperStyle={styles.container}
-                data={VideoData}
-                keyExtractor={(item) => item.keyvideo}
+                data={videos}
+                keyExtractor={(item) => item.snippet.resourceId.videoId}
                 renderItem={({ item }) => (
                     <View style={styles.items}>
-                        <Image style={styles.thumbnail} source={{ uri: item.thumbnail }} />
-                        <Text style={styles.title}>{item.title}</Text>
-                        <Text style={styles.youtuber}>{getYoutuberName(item.idYoutuber)}</Text>
-                        <Text style={styles.view}>{item.Views}</Text>
+                        <Image style={styles.thumbnail} source={{ uri: `https://i.ytimg.com/vi/${item.snippet.resourceId.videoId}/maxresdefault.jpg` }} />
+                        <Text style={styles.title}>{item.snippet.title}</Text>
+                        <View style={{ flexDirection: 'row', top: 20 }}>
+                        <Image source={{ uri: item.channelIcon }} style={styles.icon} />
+                        <Text style={styles.youtuber}>{ item.snippet.channelTitle}</Text>
+                        
+                        </View>
                     </View>
                 )}
                 numColumns={2}
@@ -33,8 +59,8 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#000',
         flexDirection: 'row',
-        justifyContent: 'space-around',
-        padding: 10,
+        justifyContent: 'space-between',
+        padding: 20,
     },
     items: {
         borderRadius: 10,
@@ -59,15 +85,21 @@ const styles = StyleSheet.create({
         padding: 2,
     },
     youtuber: {
-        marginTop: 20,
+        textAlignVertical: 'center',
         fontSize: 10,
         color: '#fff',
         fontWeight: 'bold',
     },
     view: {
         marginTop: 20,
-        fontSize: 10,
+        fontSize: 30,
         color: '#fff',
         fontWeight: 'bold',
+    },
+    icon: {
+        width: 30,
+        height: 30,
+        borderRadius: 50,
+        right:20,
     }
 });
